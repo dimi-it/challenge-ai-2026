@@ -1,0 +1,8 @@
+openai
+pydantic
+pydantic-settings
+langchain
+langchain-openai
+langfuse==4.0.0
+python-dotenv
+ulid-py

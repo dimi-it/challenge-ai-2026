@@ -9,7 +9,7 @@ class Settings:
         load_dotenv()
 
         # Provider selection: "openrouter" or "openai"
-        self.provider: str = os.getenv("PROVIDER", "openrouter").lower()
+        self.provider: str = os.getenv("PROVIDER", "openai").lower()
 
         # OpenRouter
         self.openrouter_api_key: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -29,7 +29,7 @@ class Settings:
         self.team_name: str = os.getenv("TEAM_NAME", "tutorial")
 
         # Default model
-        self.default_model_id: str = os.getenv("MODEL_ID", "gpt-4o-mini")
+        self.default_model_id: str = os.getenv("MODEL_ID", "gpt-5-mini")
         self.default_temperature: float = float(os.getenv("TEMPERATURE", "0.7"))
         self.default_max_tokens: int = int(os.getenv("MAX_TOKENS", "1000"))
 

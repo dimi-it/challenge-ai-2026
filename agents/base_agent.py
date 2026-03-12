@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from langchain_openai import ChatOpenAI
 from langfuse import observe, propagate_attributes
@@ -11,12 +11,6 @@ from tracing.langfuse_tracer import LangfuseTracer
 
 
 class BaseAgent(ABC):
-    """Abstract base class for all AI agents.
-
-    Subclasses must implement ``_build_system_prompt`` and ``run``.
-    The base class provides model creation and Langfuse-traced invocation.
-    """
-
     def __init__(
         self,
         settings: Settings,
@@ -33,10 +27,7 @@ class BaseAgent(ABC):
             max_tokens or settings.default_max_tokens,
         )
 
-    def _create_model(
-        self, model_id: str, temperature: float, max_tokens: int
-    ) -> ChatOpenAI:
-        """Instantiate a LangChain ChatOpenAI model for the configured provider."""
+    def _create_model(self, model_id: str, temperature: float, max_tokens: int) -> ChatOpenAI:
         if self._settings.provider == "openrouter":
             return ChatOpenAI(
                 api_key=self._settings.openrouter_api_key,
@@ -45,18 +36,16 @@ class BaseAgent(ABC):
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-        elif self._settings.provider == "openai":
+        if self._settings.provider == "openai":
             return ChatOpenAI(
                 api_key=self._settings.openai_api_key,
                 model=model_id,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-        else:
-            raise ValueError(
-                f"Unsupported provider: {self._settings.provider}. "
-                "Must be 'openrouter' or 'openai'."
-            )
+        raise ValueError(
+            f"Unsupported provider: {self._settings.provider}. Must be 'openrouter' or 'openai'."
+        )
 
     @property
     def model(self) -> ChatOpenAI:
@@ -66,27 +55,62 @@ class BaseAgent(ABC):
     def tracer(self) -> LangfuseTracer:
         return self._tracer
 
+    def _extract_text(self, response: Any) -> str:
+        text_method = getattr(response, "text", None)
+        if callable(text_method):
+            text_value = text_method()
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value.strip()
+
+        content = getattr(response, "content", "")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                if isinstance(item, dict):
+                    text_value = item.get("text")
+                    if isinstance(text_value, str):
+                        parts.append(text_value)
+                        continue
+                    if item.get("type") == "text":
+                        nested_text = item.get("text")
+                        if isinstance(nested_text, str):
+                            parts.append(nested_text)
+                else:
+                    text_value = getattr(item, "text", None)
+                    if isinstance(text_value, str):
+                        parts.append(text_value)
+            return "\n".join(part.strip() for part in parts if part and part.strip()).strip()
+        if content not in (None, ""):
+            return str(content).strip()
+        return ""
+        
+    def _extract_tokens(self, response: Any) -> Dict[str, int]:
+        usage = getattr(response, "response_metadata", {}).get("token_usage", {})
+        if not usage:
+            usage_metadata = getattr(response, "usage_metadata", {})
+            if usage_metadata:
+                return {
+                    "prompt_tokens": usage_metadata.get("input_tokens", 0),
+                    "completion_tokens": usage_metadata.get("output_tokens", 0),
+                    "total_tokens": usage_metadata.get("total_tokens", 0),
+                }
+        return usage
+
     @abstractmethod
     def _build_system_prompt(self) -> str:
-        """Return the system prompt that defines this agent's personality/role."""
         ...
 
     @abstractmethod
-    def _execute(self, user_input: str) -> str:
-        """Execute the agent's core logic on *user_input*.
-
-        Subclasses implement this method with their specific agent behavior.
-        Tracing is handled automatically by the base class run() method.
-        """
+    def _execute(self, user_input: str) -> Tuple[str, Dict[str, int]]:
         ...
 
     @observe()
-    def run(self, session_id: str, user_input: str) -> str:
-        """Execute the agent on *user_input* under the given *session_id*.
-
-        This method handles Langfuse tracing automatically. Subclasses should
-        implement _execute() instead of overriding this method.
-        """
+    def run(self, session_id: str, user_input: str) -> Tuple[str, Dict[str, int]]:
         with propagate_attributes(
             trace_name=f"{self.__class__.__name__}-run",
             session_id=session_id,

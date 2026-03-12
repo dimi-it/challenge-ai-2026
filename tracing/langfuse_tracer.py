@@ -90,11 +90,24 @@ class LangfuseTracer:
         counts: Dict[str, int] = defaultdict(int)
         costs: Dict[str, float] = defaultdict(float)
         total_time = 0.0
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
 
         for obs in observations:
             if hasattr(obs, "type") and obs.type == "GENERATION":
                 model = getattr(obs, "model", "unknown") or "unknown"
                 counts[model] += 1
+
+                usage_details = getattr(obs, "usage_details", None)
+                if isinstance(usage_details, dict):
+                    prompt_tokens += int(usage_details.get("input", 0) or 0)
+                    completion_tokens += int(usage_details.get("output", 0) or 0)
+                    total_tokens += int(usage_details.get("total", 0) or 0)
+
+                prompt_tokens += int(getattr(obs, "prompt_tokens", 0) or 0)
+                completion_tokens += int(getattr(obs, "completion_tokens", 0) or 0)
+                total_tokens += int(getattr(obs, "total_tokens", 0) or 0)
 
                 if (
                     hasattr(obs, "calculated_total_cost")
@@ -124,6 +137,11 @@ class LangfuseTracer:
             "counts": dict(counts),
             "costs": dict(costs),
             "time": total_time,
+            "tokens": {
+                "prompt": prompt_tokens,
+                "completion": completion_tokens,
+                "total": total_tokens or (prompt_tokens + completion_tokens),
+            },
             "input": first_input,
             "output": last_output,
         }
@@ -146,6 +164,13 @@ class LangfuseTracer:
             total += cost
         if total > 0:
             print(f"  Total: ${total:.6f}")
+
+        tokens = info.get("tokens", {})
+        if tokens:
+            print("\nToken Usage:")
+            print(f"  Prompt: {tokens.get('prompt', 0)}")
+            print(f"  Completion: {tokens.get('completion', 0)}")
+            print(f"  Total: {tokens.get('total', 0)}")
 
         print(f"\nTotal Time: {info['time']:.2f}s")
 

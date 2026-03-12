@@ -1,2 +1,4 @@
 from agents.base_agent import BaseAgent
-from agents.demo_agent import DemoAgent
+from agents.fraud_agents import FraudDecisionAgent, FraudSignalAgent, CommunicationAnalyzerAgent
+
+__all__ = ["FraudSignalAgent", "FraudDecisionAgent", "CommunicationAnalyzerAgent"]

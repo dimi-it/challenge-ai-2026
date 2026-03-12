@@ -1,2 +1,6 @@
 from agents.base_agent import BaseAgent
 from agents.demo_agent import DemoAgent
+from agents.anomaly_detector_agent import AnomalyDetectorAgent
+from agents.pattern_analyzer_agent import PatternAnalyzerAgent
+from agents.risk_assessor_agent import RiskAssessorAgent
+from agents.orchestrator_agent import OrchestratorAgent

@@ -6,3 +6,5 @@ langchain-openai
 langfuse==4.0.0
 python-dotenv
 ulid-py
+pandas
+numpy
